@@ -1,5 +1,4 @@
 import AppKit
-import ServiceManagement
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let gamma = GammaController()
@@ -61,9 +60,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: Core logic
 
-    /// Current time; `FLUX_FAKE_HOUR=21.5` overrides it for testing.
+    /// Current time; `DUSK_FAKE_HOUR=21.5` overrides it for testing.
     private func now() -> Date {
-        if let s = ProcessInfo.processInfo.environment["FLUX_FAKE_HOUR"], let h = Double(s) {
+        if let s = ProcessInfo.processInfo.environment["DUSK_FAKE_HOUR"], let h = Double(s) {
             let start = Calendar.current.startOfDay(for: Date())
             return start.addingTimeInterval(h * 3600)
         }
@@ -196,7 +195,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         loginItem = item("Start at Login", #selector(toggleLogin))
         menu.addItem(loginItem)
-        menu.addItem(item("Quit FluxClone", #selector(quit), key: "q"))
+        menu.addItem(item("Quit Dusk", #selector(quit), key: "q"))
     }
 
     private func item(_ title: String, _ action: Selector, key: String = "") -> NSMenuItem {
@@ -231,7 +230,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         // Icon
         let symbol = night > 0.5 ? (active ? "moon.fill" : "moon") : (active ? "sun.max.fill" : "sun.max")
-        let img = NSImage(systemSymbolName: symbol, accessibilityDescription: "FluxClone")
+        let img = NSImage(systemSymbolName: symbol, accessibilityDescription: "Dusk")
         img?.isTemplate = true
         statusItem.button?.image = img
 
@@ -259,7 +258,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         pauseHourItem.isHidden = !Settings.enabled || isPaused
         pauseSunriseItem.isHidden = !Settings.enabled || isPaused
         resumeItem.isHidden = !isPaused
-        loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
+        loginItem.state = LoginItem.isEnabled ? .on : .off
     }
 
     func menuWillOpen(_ menu: NSMenu) {
@@ -321,15 +320,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func toggleLogin() {
         do {
-            if SMAppService.mainApp.status == .enabled {
-                try SMAppService.mainApp.unregister()
-            } else {
-                try SMAppService.mainApp.register()
-            }
+            try LoginItem.set(!LoginItem.isEnabled)
         } catch {
             let alert = NSAlert()
             alert.messageText = "Couldn't change Start at Login"
-            alert.informativeText = "\(error.localizedDescription)\n\nTip: move FluxClone.app to ~/Applications or /Applications first."
+            alert.informativeText = error.localizedDescription
             NSApp.activate(ignoringOtherApps: true)
             alert.runModal()
         }

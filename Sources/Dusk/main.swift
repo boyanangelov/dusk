@@ -1,6 +1,6 @@
 import AppKit
 
-// Debug: `FluxClone --print-schedule [lat lon]` prints today's sun schedule and exits.
+// Debug: `Dusk --print-schedule [lat lon]` prints today's sun schedule and exits.
 if let i = CommandLine.arguments.firstIndex(of: "--print-schedule") {
     Settings.register()
     let args = CommandLine.arguments.dropFirst(i + 1).compactMap(Double.init)

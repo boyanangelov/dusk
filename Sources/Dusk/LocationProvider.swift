@@ -12,17 +12,25 @@ final class LocationProvider: NSObject, CLLocationManagerDelegate {
         manager.desiredAccuracy = kCLLocationAccuracyKilometer
     }
 
-    var isApproximate: Bool { Settings.location == nil }
+    /// `DUSK_LOCATION="48.86,2.35"` pins the location (for testing and demos) and skips CoreLocation.
+    private let pinned: (lat: Double, lon: Double)? = {
+        let parts = (ProcessInfo.processInfo.environment["DUSK_LOCATION"] ?? "")
+            .split(separator: ",").compactMap { Double($0.trimmingCharacters(in: .whitespaces)) }
+        return parts.count == 2 ? (parts[0], parts[1]) : nil
+    }()
+
+    var isApproximate: Bool { pinned == nil && Settings.location == nil }
 
     /// Cached real location, or a rough guess from the time zone (lat 45°, lon from UTC offset).
     var coordinate: (lat: Double, lon: Double) {
-        if let loc = Settings.location { return loc }
+        if let loc = pinned ?? Settings.location { return loc }
         let tz = TimeZone.current
         let standardOffset = Double(tz.secondsFromGMT()) - tz.daylightSavingTimeOffset()
         return (45, standardOffset / 3600 * 15)
     }
 
     func refresh() {
+        guard pinned == nil else { return }
         switch manager.authorizationStatus {
         case .notDetermined:
             manager.requestWhenInUseAuthorization()
