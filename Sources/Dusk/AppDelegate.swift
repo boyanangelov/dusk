@@ -10,6 +10,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let sunLine = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private let locationLine = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private var enabledItem: NSMenuItem!
+    private var autoItem: NSMenuItem!
+    private var manualItem: NSMenuItem!
     private var pauseHourItem: NSMenuItem!
     private var pauseSunriseItem: NSMenuItem!
     private var resumeItem: NSMenuItem!
@@ -81,6 +83,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func target(at date: Date) -> (kelvin: Double, brightness: Double) {
         guard Settings.enabled, !isPaused else { return (SunSchedule.dayKelvin, 1) }
+        if Settings.manual { return (Settings.manualKelvin, Settings.manualBrightness) }
         let f = nightFactor(at: date)
         let k = SunSchedule.dayKelvin + (Settings.nightKelvin - SunSchedule.dayKelvin) * f
         let b = 1 + (Settings.nightBrightness - 1) * f
@@ -179,10 +182,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(enabledItem)
         menu.addItem(.separator())
 
-        var s = sliderItem(title: "", min: 1900, max: 6500, value: Settings.nightKelvin, action: #selector(warmthChanged))
+        autoItem = item("Automatic (sunrise/sunset)", #selector(setAuto))
+        manualItem = item("Manual (fixed colour)", #selector(setManual))
+        menu.addItem(autoItem)
+        menu.addItem(manualItem)
+        menu.addItem(.separator())
+
+        var s = sliderItem(title: "", min: 1900, max: 6500, value: currentKelvin, action: #selector(warmthChanged))
         warmthSlider = s.slider; warmthLabel = s.label
         menu.addItem(s.item)
-        s = sliderItem(title: "", min: 0.1, max: 1.0, value: Settings.nightBrightness, action: #selector(brightnessChanged))
+        s = sliderItem(title: "", min: 0.1, max: 1.0, value: currentBrightness, action: #selector(brightnessChanged))
         brightSlider = s.slider; brightLabel = s.label
         menu.addItem(s.item)
         menu.addItem(.separator())
@@ -253,8 +262,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             : String(format: "Location: %.2f°, %.2f°", c.lat, c.lon)
 
         enabledItem.state = Settings.enabled ? .on : .off
-        warmthLabel.stringValue = "Night colour: \(Int(Settings.nightKelvin))K"
-        brightLabel.stringValue = String(format: "Night brightness: %.1f%%", Settings.nightBrightness * 100)
+        let prefix = Settings.manual ? "Colour" : "Night colour"
+        let bPrefix = Settings.manual ? "Brightness" : "Night brightness"
+        warmthLabel.stringValue = "\(prefix): \(Int(currentKelvin))K"
+        brightLabel.stringValue = String(format: "%@: %.1f%%", bPrefix, currentBrightness * 100)
+        autoItem.state = Settings.manual ? .off : .on
+        manualItem.state = Settings.manual ? .on : .off
         pauseHourItem.isHidden = !Settings.enabled || isPaused
         pauseSunriseItem.isHidden = !Settings.enabled || isPaused
         resumeItem.isHidden = !isPaused
@@ -262,8 +275,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func menuWillOpen(_ menu: NSMenu) {
-        warmthSlider.doubleValue = Settings.nightKelvin
-        brightSlider.doubleValue = Settings.nightBrightness
+        warmthSlider.doubleValue = currentKelvin
+        brightSlider.doubleValue = currentBrightness
         refreshMenu()
     }
 
@@ -282,14 +295,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         update(animated: true)
     }
 
+    /// Slider values belong to the active mode: night values (automatic) or the fixed colour (manual).
+    private var currentKelvin: Double { Settings.manual ? Settings.manualKelvin : Settings.nightKelvin }
+    private var currentBrightness: Double { Settings.manual ? Settings.manualBrightness : Settings.nightBrightness }
+
+    @objc private func setAuto() { setMode(manual: false) }
+    @objc private func setManual() { setMode(manual: true) }
+
+    private func setMode(manual: Bool) {
+        Settings.manual = manual
+        if manual { Settings.pausedUntil = nil; Settings.enabled = true }
+        previewing = false
+        warmthSlider.doubleValue = currentKelvin
+        brightSlider.doubleValue = currentBrightness
+        update(animated: true)
+    }
+
     @objc private func warmthChanged() {
-        Settings.nightKelvin = (warmthSlider.doubleValue / 10).rounded() * 10
-        preview()
+        let k = (warmthSlider.doubleValue / 10).rounded() * 10
+        if Settings.manual { Settings.manualKelvin = k } else { Settings.nightKelvin = k }
+        applyAdjustment()
     }
 
     @objc private func brightnessChanged() {
-        Settings.nightBrightness = (brightSlider.doubleValue * 1000).rounded() / 1000
-        preview()
+        let b = (brightSlider.doubleValue * 1000).rounded() / 1000
+        if Settings.manual { Settings.manualBrightness = b } else { Settings.nightBrightness = b }
+        applyAdjustment()
+    }
+
+    /// Manual mode applies the colour for good; automatic mode only previews it while the menu is open.
+    private func applyAdjustment() {
+        if Settings.manual {
+            animTimer?.invalidate()
+            animTimer = nil
+            gamma.apply(kelvin: Settings.manualKelvin, brightness: Settings.manualBrightness)
+            refreshMenu()
+        } else {
+            preview()
+        }
     }
 
     /// While dragging, show the full night setting so it can be judged (even in daytime).

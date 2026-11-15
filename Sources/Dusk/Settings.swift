@@ -4,7 +4,8 @@ enum Settings {
     private static let d = UserDefaults.standard
 
     static func register() {
-        d.register(defaults: ["enabled": true, "nightKelvin": 3400.0, "nightBrightness": 1.0])
+        d.register(defaults: ["enabled": true, "nightKelvin": 3400.0, "nightBrightness": 1.0,
+                     "manual": false, "manualKelvin": 4500.0, "manualBrightness": 1.0])
     }
 
     static var enabled: Bool {
@@ -20,6 +21,22 @@ enum Settings {
     static var nightBrightness: Double {
         get { d.double(forKey: "nightBrightness") }
         set { d.set(newValue, forKey: "nightBrightness") }
+    }
+
+    /// false = automatic (follows sunrise/sunset), true = manual (fixed colour, always applied).
+    static var manual: Bool {
+        get { d.bool(forKey: "manual") }
+        set { d.set(newValue, forKey: "manual") }
+    }
+
+    static var manualKelvin: Double {
+        get { d.double(forKey: "manualKelvin") }
+        set { d.set(newValue, forKey: "manualKelvin") }
+    }
+
+    static var manualBrightness: Double {
+        get { d.double(forKey: "manualBrightness") }
+        set { d.set(newValue, forKey: "manualBrightness") }
     }
 
     static var pausedUntil: Date? {
